@@ -38,6 +38,11 @@ jobs:
           cd auto_clicker_app
           flutter pub get
 
+      - name: Clean build artifacts
+        run: |
+          cd auto_clicker_app
+          flutter clean
+
       - name: Build APK (Release)
         run: |
           cd auto_clicker_app
