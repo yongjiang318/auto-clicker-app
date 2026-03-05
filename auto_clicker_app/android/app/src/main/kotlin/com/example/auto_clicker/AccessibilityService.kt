@@ -161,7 +161,7 @@ class AutoClickerAccessibilityService : AccessibilityService() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "执行点击动作时发生异常: ${e.message}", e)
-            false
+            return false
         }
     }
 

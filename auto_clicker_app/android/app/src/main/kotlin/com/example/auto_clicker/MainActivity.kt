@@ -9,11 +9,16 @@ import android.os.Bundle
 import android.provider.Settings
 import android.text.TextUtils
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    companion object {
+        private const val TAG = "AutoClickerMain"
+    }
+
     private val CHANNEL = "com.example.auto_clicker/accessibility"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
