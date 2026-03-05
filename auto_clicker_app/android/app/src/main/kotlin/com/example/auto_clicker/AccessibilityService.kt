@@ -66,10 +66,16 @@ class AutoClickerAccessibilityService : AccessibilityService() {
      * 查找并点击包含指定文本的节点
      */
     fun performTextClick(text: String): Boolean {
+        if (text.isNullOrEmpty()) {
+            Log.e(TAG, "文本为空")
+            return false
+        }
+
         Log.d(TAG, "查找文本: $text")
 
-        val rootNode = rootInActiveWindow ?: run {
-            Log.e(TAG, "无法获取根节点")
+        val rootNode = rootInActiveWindow
+        if (rootNode == null) {
+            Log.e(TAG, "无法获取根节点，无障碍服务可能未正确连接")
             return false
         }
 
@@ -100,15 +106,18 @@ class AutoClickerAccessibilityService : AccessibilityService() {
 
         if (nodeText.contains(text, ignoreCase = true) ||
             contentDesc.contains(text, ignoreCase = true)) {
+            Log.d(TAG, "找到匹配节点: $nodeText")
             return node
         }
 
         // 检查子节点
         for (i in 0 until node.childCount) {
             val child = node.getChild(i)
-            val result = findNodeByText(child, text)
-            if (result != null) {
-                return result
+            if (child != null) {
+                val result = findNodeByText(child, text)
+                if (result != null) {
+                    return result
+                }
             }
         }
 
@@ -119,22 +128,40 @@ class AutoClickerAccessibilityService : AccessibilityService() {
      * 执行单个点击动作
      */
     fun performClickAction(action: Map<String, Any>): Boolean {
-        val type = action["type"] as? String ?: return false
+        try {
+            val type = action["type"] as? String ?: run {
+                Log.e(TAG, "缺少点击类型")
+                return false
+            }
 
-        return when (type) {
-            "coordinate" -> {
-                val x = (action["x"] as? Double)?.toFloat() ?: return false
-                val y = (action["y"] as? Double)?.toFloat() ?: return false
-                performCoordinateClick(x, y)
+            return when (type) {
+                "coordinate" -> {
+                    val x = (action["x"] as? Number)?.toFloat() ?: run {
+                        Log.e(TAG, "坐标 X 无效")
+                        return false
+                    }
+                    val y = (action["y"] as? Number)?.toFloat() ?: run {
+                        Log.e(TAG, "坐标 Y 无效")
+                        return false
+                    }
+                    Log.d(TAG, "执行坐标点击: ($x, $y)")
+                    performCoordinateClick(x, y)
+                }
+                "text" -> {
+                    val text = action["text"] as? String ?: run {
+                        Log.e(TAG, "点击文本为空")
+                        return false
+                    }
+                    performTextClick(text)
+                }
+                else -> {
+                    Log.e(TAG, "未知的点击类型: $type")
+                    false
+                }
             }
-            "text" -> {
-                val text = action["text"] as? String ?: return false
-                performTextClick(text)
-            }
-            else -> {
-                Log.e(TAG, "未知的点击类型: $type")
-                false
-            }
+        } catch (e: Exception) {
+            Log.e(TAG, "执行点击动作时发生异常: ${e.message}", e)
+            false
         }
     }
 
@@ -162,7 +189,7 @@ class AutoClickerAccessibilityService : AccessibilityService() {
 
         isAutoClicking = true
         currentActionIndex = 0
-        Log.d(TAG, "开始自动点击")
+        Log.d(TAG, "开始自动点击，共 ${clickActions.size} 个动作")
 
         executeNextAction()
     }
@@ -208,9 +235,26 @@ class AutoClickerAccessibilityService : AccessibilityService() {
      * 获取屏幕尺寸
      */
     fun getScreenSize(): Pair<Int, Int> {
-        val rootNode = rootInActiveWindow ?: return Pair(0, 0)
-        val bounds = Rect()
-        rootNode.getBoundsInScreen(bounds)
-        return Pair(bounds.width(), bounds.height())
+        try {
+            val rootNode = rootInActiveWindow ?: run {
+                Log.w(TAG, "无法获取根节点，返回默认屏幕尺寸")
+                return Pair(1080, 1920)
+            }
+            val bounds = Rect()
+            rootNode.getBoundsInScreen(bounds)
+            val width = bounds.width()
+            val height = bounds.height()
+
+            if (width > 0 && height > 0) {
+                Log.d(TAG, "屏幕尺寸: ${width}x$height")
+                return Pair(width, height)
+            } else {
+                Log.w(TAG, "屏幕尺寸无效，使用默认值")
+                return Pair(1080, 1920)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取屏幕尺寸失败: ${e.message}", e)
+            return Pair(1080, 1920)
+        }
     }
 }

@@ -37,17 +37,23 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _checkAccessibilityStatus();
+    // 延迟检查，等待 Activity 完全初始化
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAccessibilityStatus();
+    });
   }
 
   Future<void> _checkAccessibilityStatus() async {
     try {
-      final bool isEnabled = await platform.invokeMethod('isAccessibilityEnabled');
+      final bool? isEnabled = await platform.invokeMethod('isAccessibilityEnabled');
       setState(() {
-        _isAccessibilityEnabled = isEnabled;
+        _isAccessibilityEnabled = isEnabled ?? false;
       });
     } catch (e) {
       debugPrint('检查无障碍服务失败: $e');
+      setState(() {
+        _isAccessibilityEnabled = false;
+      });
     }
   }
 
@@ -80,6 +86,35 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    if (!_isAccessibilityEnabled) {
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('⚠️ 无障碍服务未启用'),
+            content: const Text(
+              '请先启用无障碍服务才能使用自动点击功能。\n\n'
+              '点击右上角设置图标，在无障碍设置中找到"自动点击器"并启用。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _openAccessibilitySettings();
+                },
+                child: const Text('去设置'),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
     try {
       final bool success = await platform.invokeMethod('startAutoClick', {
         'actions': _clickActions,
@@ -90,22 +125,28 @@ class _HomePageState extends State<HomePage> {
           _isAutoClicking = true;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('自动点击已启动')),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('自动点击已启动')),
+          );
+        }
 
         // 模拟自动执行
         await _executeClickActions();
 
-        setState(() {
-          _isAutoClicking = false;
-        });
+        if (context.mounted) {
+          setState(() {
+            _isAutoClicking = false;
+          });
+        }
       }
     } catch (e) {
       debugPrint('启动自动点击失败: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('启动失败: $e')),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('启动失败: $e')),
+        );
+      }
     }
   }
 

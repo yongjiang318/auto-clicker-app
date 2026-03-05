@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import android.text.TextUtils
 import android.accessibilityservice.AccessibilityServiceInfo
@@ -64,8 +65,20 @@ class MainActivity : FlutterActivity() {
      * 检查无障碍服务是否启用
      */
     private fun isAccessibilityServiceEnabled(): Boolean {
-        val service = AutoClickerAccessibilityService.getInstance()
-        return service != null && AutoClickerAccessibilityService.isRunning()
+        try {
+            val enabledServices = Settings.Secure.getString(
+                contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            )
+            val packageName = packageName
+            val isEnabled = enabledServices?.contains(packageName) ?: false
+
+            Log.d(TAG, "无障碍服务状态: $isEnabled")
+            return isEnabled
+        } catch (e: Exception) {
+            Log.e(TAG, "检查无障碍服务失败", e)
+            return false
+        }
     }
 
     /**
@@ -80,17 +93,31 @@ class MainActivity : FlutterActivity() {
      * 开始自动点击
      */
     private fun startAutoClick(actions: List<Map<String, Any>>) {
-        val service = AutoClickerAccessibilityService.getInstance()
-        service?.setClickActions(actions)
-        service?.startAutoClick()
+        try {
+            // 启动前台服务
+            startForegroundService()
+
+            val service = AutoClickerAccessibilityService.getInstance()
+            service?.setClickActions(actions)
+            service?.startAutoClick()
+        } catch (e: Exception) {
+            Log.e(TAG, "启动自动点击失败", e)
+        }
     }
 
     /**
      * 停止自动点击
      */
     private fun stopAutoClick() {
-        val service = AutoClickerAccessibilityService.getInstance()
-        service?.stopAutoClick()
+        try {
+            val service = AutoClickerAccessibilityService.getInstance()
+            service?.stopAutoClick()
+
+            // 停止前台服务
+            stopForegroundService()
+        } catch (e: Exception) {
+            Log.e(TAG, "停止自动点击失败", e)
+        }
     }
 
     /**
@@ -107,5 +134,33 @@ class MainActivity : FlutterActivity() {
     private fun getScreenSize(): Pair<Int, Int> {
         val service = AutoClickerAccessibilityService.getInstance()
         return service?.getScreenSize() ?: Pair(0, 0)
+    }
+
+    /**
+     * 启动前台服务
+     */
+    private fun startForegroundService() {
+        try {
+            val intent = Intent(this, AutoClickerForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启动前台服务失败", e)
+        }
+    }
+
+    /**
+     * 停止前台服务
+     */
+    private fun stopForegroundService() {
+        try {
+            val intent = Intent(this, AutoClickerForegroundService::class.java)
+            stopService(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "停止前台服务失败", e)
+        }
     }
 }
