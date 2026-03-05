@@ -1,0 +1,71 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'auto_clicker_app/**'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'auto_clicker_app/**'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Get Flutter dependencies
+        run: |
+          cd auto_clicker_app
+          flutter pub get
+
+      - name: Build APK (Release)
+        run: |
+          cd auto_clicker_app
+          flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-clicker-apk
+          path: auto_clicker_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: Generate APK info
+        id: apk-info
+        run: |
+          cd auto_clicker_app/build/app/outputs/flutter-apk
+          ls -lh app-release.apk
+          echo "APK size: $(du -h app-release.apk | cut -f1)"
+          echo "APK hash: $(sha256sum app-release.apk | cut -d' ' -f1)"
+
+      - name: Create release summary
+        run: |
+          echo "## 🚀 Build Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### APK Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **File:** app-release.apk" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Type:** Release" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target:** Android 7.0+ (API 24+)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Download" >> $GITHUB_STEP_SUMMARY
+          echo "You can download the APK from the artifacts section below." >> $GITHUB_STEP_SUMMARY

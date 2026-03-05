@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">自动点击器</string>
+    <string name="accessibility_service_description">自动点击器 - 帮助自动点击微信小程序中的按钮和选择框</string>
+</resources>
