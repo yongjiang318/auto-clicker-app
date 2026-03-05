@@ -59,6 +59,14 @@ class MainActivity : FlutterActivity() {
                     val (width, height) = getScreenSize()
                     result.success(mapOf("width" to width, "height" to height))
                 }
+                "requestBatteryOptimizationExemption" -> {
+                    requestBatteryOptimizationExemption()
+                    result.success(null)
+                }
+                "openHuaWeiBackgroundSettings" -> {
+                    openHuaWeiBackgroundSettings()
+                    result.success(null)
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -74,10 +82,21 @@ class MainActivity : FlutterActivity() {
             val enabledServices = Settings.Secure.getString(
                 contentResolver,
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            )
+            ) ?: return false
+            
+            // 使用 ComponentName 进行更准确的检查
+            val componentName = ComponentName(this, AutoClickerAccessibilityService::class.java)
+            val flattenToString = componentName.flattenToString()
             val packageName = packageName
-            val isEnabled = enabledServices?.contains(packageName) ?: false
-
+            
+            Log.d(TAG, "检查无障碍服务：")
+            Log.d(TAG, "  包名: $packageName")
+            Log.d(TAG, "  组件名: $flattenToString")
+            Log.d(TAG, "  已启用服务: $enabledServices")
+            
+            val isEnabled = enabledServices.contains(flattenToString) || 
+                           enabledServices.contains(packageName)
+            
             Log.d(TAG, "无障碍服务状态: $isEnabled")
             return isEnabled
         } catch (e: Exception) {
@@ -103,8 +122,14 @@ class MainActivity : FlutterActivity() {
             startForegroundService()
 
             val service = AutoClickerAccessibilityService.getInstance()
-            service?.setClickActions(actions)
-            service?.startAutoClick()
+            if (service == null) {
+                Log.e(TAG, "无障碍服务未启动，请先在设置中启用")
+                return
+            }
+            
+            service.setClickActions(actions)
+            service.startAutoClick()
+            Log.d(TAG, "自动点击已启动，共 ${actions.size} 个动作")
         } catch (e: Exception) {
             Log.e(TAG, "启动自动点击失败", e)
         }
@@ -166,6 +191,60 @@ class MainActivity : FlutterActivity() {
             stopService(intent)
         } catch (e: Exception) {
             Log.e(TAG, "停止前台服务失败", e)
+        }
+    }
+
+    /**
+     * 请求电池优化豁免（华为等国产手机必须）
+     */
+    private fun requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                intent.data = Uri.parse("package:$packageName")
+                Log.d(TAG, "请求电池优化豁免")
+                startActivity(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "通用电池优化设置失败，尝试华为专用路径", e)
+                // 华为 EMUI 专用路径
+                try {
+                    val intent = Intent()
+                    intent.setClassName("com.huawei.systemmanager", 
+                        "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity")
+                    Log.d(TAG, "使用华为专用路径")
+                    startActivity(intent)
+                } catch (e2: Exception) {
+                    Log.e(TAG, "华为专用路径也失败", e2)
+                    // 降级到应用详情页面
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    intent.data = Uri.parse("package:$packageName")
+                    startActivity(intent)
+                }
+            }
+        }
+    }
+
+    /**
+     * 打开华为后台保护设置
+     */
+    private fun openHuaWeiBackgroundSettings() {
+        try {
+            // 华为 EMUI 10+ 特殊跳转
+            val intent = Intent()
+            intent.setClassName("com.huawei.systemmanager", 
+                "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity")
+            Log.d(TAG, "打开华为后台保护设置")
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "华为后台设置打开失败", e)
+            // 降级到通用设置
+            try {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                intent.data = Uri.parse("package:$packageName")
+                startActivity(intent)
+            } catch (e2: Exception) {
+                Log.e(TAG, "通用设置也失败", e2)
+            }
         }
     }
 }
